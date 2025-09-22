@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeSage - AI Development Assistant</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 2rem; background-color: #f4f7f9; color: #333; }
+        .container { max-width: 1200px; margin: 0 auto; background: #fff; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        h1, h2, h3 { color: #1a253c; border-bottom: 2px solid #eef2f7; padding-bottom: 0.5rem; }
+        .form-section, .results-section { margin-bottom: 2rem; padding: 1.5rem; border: 1px solid #ddd; border-radius: 8px; }
+        label { display: block; margin-bottom: 0.5rem; font-weight: 600; }
+        input[type="file"], select, textarea { width: 100%; padding: 0.5rem; margin-bottom: 1rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-family: inherit; font-size: 1rem; }
+        textarea { min-height: 80px; resize: vertical; }
+        button { padding: 0.75rem 1.5rem; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; }
+        button:hover { background-color: #0056b3; }
+        .loader { display: none; text-align: center; padding: 1rem; font-weight: bold; }
+        .results-content pre { white-space: pre-wrap; word-wrap: break-word; background: #2d2d2d; color: #f8f8f2; padding: 1rem; border-radius: 4px; }
+        .results-content .markdown-body { padding: 1rem; }
+        #project-explorer-grid { display: none; grid-template-columns: 300px 1fr; gap: 1.5rem; margin-top: 1rem; }
+        #file-tree-container { border: 1px solid #ddd; padding: 1rem; height: 600px; overflow-y: auto; background-color: #fafafa; }
+        #code-viewer-wrapper { position: relative; }
+        #code-viewer-container { border: 1px solid #ddd; height: 600px; overflow-y: auto; }
+        #code-viewer { font-family: 'Courier New', Courier, monospace; font-size: 14px; margin: 0; }
+        #file-tree ul { list-style-type: none; padding-left: 20px; }
+        #file-tree li { padding: 4px 0; cursor: pointer; }
+        #file-tree li.directory::before { content: '📁 '; }
+        #file-tree li.file::before { content: '📄 '; }
+        #file-tree li:hover { background-color: #eef2f7; }
+        #file-tree li.active { background-color: #007bff; color: white; }
+        #db-connections-output dl { font-family: 'Courier New', Courier, monospace; }
+        #db-connections-output dt { font-weight: bold; color: #1a253c; }
+        #db-connections-output dd { margin-left: 20px; margin-bottom: 10px; color: #555; background: #f0f0f0; padding: 5px; border-radius: 4px;}
+        #generate-tests-btn { display: none; margin-left: 1rem; background-color: #28a745; }
+        #generate-tests-btn:hover { background-color: #218838; }
+        #refactor-toolbar { display: none; position: absolute; top: 10px; right: 10px; z-index: 10; background: #fff; padding: 10px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); align-items: center; gap: 10px; }
+        #refactor-toolbar select { width: auto; margin-bottom: 0; }
+        #refactor-toolbar button { font-size: 0.9rem; padding: 0.5rem 1rem; background-color: #ffc107; }
+        #refactor-toolbar button:hover { background-color: #e0a800; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
+        .modal-content { background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 900px; border-radius: 8px; position: relative; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; padding-bottom: 10px; }
+        .close-btn { color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close-btn:hover, .close-btn:focus { color: black; }
+        .modal-body { max-height: 70vh; overflow-y: auto; }
+        .modal-body pre { background: #2d2d2d; color: #f8f8f2; padding: 1rem; border-radius: 4px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>CodeSage: AI Development Assistant</h1>
+    <div class="form-section">
+        <h2>Upload Project</h2>
+        <form id="analyze-form"><input type="file" id="analyze-file" name="file" accept=".zip" required><button type="submit">Analyze Project</button></form>
+        <div id="loader" class="loader">Analyzing...</div>
+    </div>
+
+    <section id="project-explorer-section" class="results-section" style="display:none;">
+        <div style="display: flex; align-items: center; justify-content: space-between;"><h2>Project Explorer</h2><button id="generate-tests-btn">Generate Tests</button></div>
+        <div id="project-explorer-grid">
+            <div id="file-tree-container"><div id="file-tree"></div></div>
+            <div id="code-viewer-wrapper">
+                <div id="refactor-toolbar"><label for="refactor-goal" style="margin:0;">Goal:</label><select id="refactor-goal"><option value="improve readability">Improve Readability</option><option value="improve performance">Improve Performance</option><option value="add comments">Add Comments</option><option value="find bugs">Find Bugs</option></select><button id="refactor-btn">Refactor</button></div>
+                <div id="code-viewer-container"><pre><code id="code-viewer" class="language-plaintext">Select a file to view its content.</code></pre></div>
+            </div>
+        </div>
+    </section>
+
+    <section id="live-edit-section" class="results-section" style="display:none;">
+        <h2>Guided Implementation</h2>
+        <label for="live-edit-prompt">Describe the feature or change you want to implement:</label>
+        <textarea id="live-edit-prompt" placeholder="e.g., 'add a new feature for user authentication' or 'create a new service class called UserService'"></textarea>
+        <button id="live-edit-btn">Generate Guide</button>
+        <div id="live-edit-loader" class="loader">Generating guide... This may take a moment.</div>
+    </section>
+
+    <section id="db-analysis-section" class="results-section" style="display:none;"><h2>Database Connection Analysis</h2><div id="db-connections-output"></div></section>
+    <section id="analysis-results" class="results-section" style="display:none;"><h2>AI Analysis Results</h2><div class="results-content"><h3>Code Review:</h3><pre id="code-review-output"></pre><h3>Generated Documentation (README.md):</h3><div id="documentation-output" class="markdown-body"></div></div></section>
+</div>
+
+<div id="tests-modal" class="modal"><div class="modal-content"><div class="modal-header"><h3>Generated Unit Tests</h3><span class="close-btn" data-modal="tests-modal">&times;</span></div><div class="modal-body"><div id="tests-loader" class="loader"></div><pre><code id="generated-tests-code" class="language-java"></code></pre></div></div></div>
+<div id="refactor-modal" class="modal"><div class="modal-content"><div class="modal-header"><h3>Refactoring Suggestion</h3><span class="close-btn" data-modal="refactor-modal">&times;</span></div><div class="modal-body"><div id="refactor-loader" class="loader"></div><pre><code id="refactored-code" class="language-java"></code></pre></div></div></div>
+<div id="guide-modal" class="modal"><div class="modal-content"><div class="modal-header"><h3>Implementation Guide</h3><span class="close-btn" data-modal="guide-modal">&times;</span></div><div class="modal-body" id="guide-output"></div></div></div>
+
+<script>
+    // --- State Management ---
+    let currentProjectId = null, activeFileElement = null, selectedJavaFile = null;
+
+    // --- DOM Element Cache ---
+    const dom = {
+        analyzeForm: document.getElementById('analyze-form'),
+        loader: document.getElementById('loader'),
+        projectExplorerSection: document.getElementById('project-explorer-section'),
+        projectExplorerGrid: document.getElementById('project-explorer-grid'),
+        analysisResults: document.getElementById('analysis-results'),
+        fileTreeContainer: document.getElementById('file-tree'),
+        codeViewer: document.getElementById('code-viewer'),
+        codeViewerContainer: document.getElementById('code-viewer-container'),
+        codeReviewOutput: document.getElementById('code-review-output'),
+        documentationOutput: document.getElementById('documentation-output'),
+        dbAnalysisSection: document.getElementById('db-analysis-section'),
+        dbConnectionsOutput: document.getElementById('db-connections-output'),
+        generateTestsBtn: document.getElementById('generate-tests-btn'),
+        refactorToolbar: document.getElementById('refactor-toolbar'),
+        refactorBtn: document.getElementById('refactor-btn'),
+        refactorGoal: document.getElementById('refactor-goal'),
+        liveEditSection: document.getElementById('live-edit-section'),
+        liveEditBtn: document.getElementById('live-edit-btn'),
+        liveEditPrompt: document.getElementById('live-edit-prompt'),
+        liveEditLoader: document.getElementById('live-edit-loader'),
+        modals: {
+            tests: {el: document.getElementById('tests-modal'), loader: document.getElementById('tests-loader'), code: document.getElementById('generated-tests-code')},
+            refactor: {el: document.getElementById('refactor-modal'), loader: document.getElementById('refactor-loader'), code: document.getElementById('refactored-code')},
+            guide: {el: document.getElementById('guide-modal'), output: document.getElementById('guide-output')}
+        }
+    };
+
+    // --- Event Listeners ---
+    dom.analyzeForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(dom.analyzeForm);
+
+        dom.loader.style.display = 'block';
+        [dom.projectExplorerSection, dom.analysisResults, dom.dbAnalysisSection, dom.liveEditSection, dom.generateTestsBtn, dom.refactorToolbar].forEach(el => el.style.display = 'none');
+        dom.projectExplorerGrid.style.display = 'none';
+
+        try {
+            const response = await fetch('/api/project/analyze', { method: 'POST', body: formData });
+            if (!response.ok) throw new Error((await response.json()).error || 'Failed to analyze project.');
+            const result = await response.json();
+
+            currentProjectId = result.projectId;
+            renderAnalysisResults(result);
+            renderFileTree(result.fileTree, dom.fileTreeContainer, '');
+            renderDbConnections(result.dbConnections);
+
+            [dom.projectExplorerSection, dom.analysisResults, dom.dbAnalysisSection, dom.liveEditSection].forEach(el => el.style.display = 'block');
+            dom.projectExplorerGrid.style.display = 'grid';
+        } catch (error) {
+            alert('Error: ' + error.message);
+        } finally {
+            dom.loader.style.display = 'none';
+        }
+    });
+
+    dom.liveEditBtn.addEventListener('click', async () => {
+        const prompt = dom.liveEditPrompt.value.trim();
+        if (!prompt || !currentProjectId) return alert('Please enter a prompt.');
+
+        const modal = dom.modals.guide;
+        modal.el.style.display = 'block';
+        modal.output.innerHTML = '<div class="loader" style="display:block;">Generating guide...</div>';
+
+        try {
+            const response = await fetch('/api/project/live-edit', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ projectId: currentProjectId, prompt: prompt })
+            });
+            if (!response.ok) throw new Error((await response.json()).error || 'Failed to generate guide.');
+            const result = await response.json();
+
+            modal.output.innerHTML = marked.parse(result.guide);
+            // After rendering markdown, find and highlight all code blocks within it
+            modal.output.querySelectorAll('pre code').forEach(block => {
+                hljs.highlightElement(block);
+            });
+
+        } catch (error) {
+            modal.output.innerHTML = `<p><strong>Error:</strong> ${error.message}</p>`;
+        }
+    });
+
+    // Other event handlers for file tree, tests, refactor, and modals
+    // ... (These functions are unchanged from the previous version)
+
+    function renderFileTree(nodes, parentElement, currentPath) {
+        const ul = document.createElement('ul');
+        if (currentPath === '') parentElement.innerHTML = '';
+        nodes.forEach(node => {
+            const li = document.createElement('li');
+            li.textContent = node.name;
+            li.className = node.type;
+            const fullPath = (currentPath ? currentPath + '/' : '') + node.name;
+            if (node.type === 'file') li.dataset.path = fullPath;
+            else if (node.children) renderFileTree(node.children, li, fullPath);
+            ul.appendChild(li);
+        });
+        parentElement.appendChild(ul);
+    }
+
+    function renderDbConnections(connections) {
+        dom.dbConnectionsOutput.innerHTML = '';
+        if (Object.keys(connections).length === 0) {
+            dom.dbConnectionsOutput.textContent = 'No database configuration files found.';
+            return;
+        }
+        const dl = document.createElement('dl');
+        for (const [key, value] of Object.entries(connections)) {
+            const dt = document.createElement('dt'); dt.textContent = `${key}:`;
+            const dd = document.createElement('dd'); dd.textContent = value;
+            dl.appendChild(dt); dl.appendChild(dd);
+        }
+        dom.dbConnectionsOutput.appendChild(dl);
+    }
+
+    function renderAnalysisResults(result) {
+        dom.codeReviewOutput.textContent = result.codeReview;
+        dom.documentationOutput.innerHTML = marked.parse(result.documentation);
+    }
+
+    dom.fileTreeContainer.addEventListener('click', async (e) => {
+        const clickedLi = e.target.closest('li');
+        if (!clickedLi || !clickedLi.classList.contains('file')) return;
+        const filePath = clickedLi.dataset.path;
+        if (!filePath || !currentProjectId) return;
+
+        if (activeFileElement) activeFileElement.classList.remove('active');
+        activeFileElement = clickedLi;
+        activeFileElement.classList.add('active');
+
+        dom.generateTestsBtn.style.display = filePath.toLowerCase().endsWith('.java') ? 'block' : 'none';
+        selectedJavaFile = filePath.toLowerCase().endsWith('.java') ? filePath : null;
+
+        try {
+            const response = await fetch(`/api/project/file-content?projectId=${currentProjectId}&filePath=${encodeURIComponent(filePath)}`);
+            if (!response.ok) throw new Error('Could not fetch file content.');
+            const content = await response.text();
+            dom.codeViewer.removeAttribute('class');
+            dom.codeViewer.textContent = content;
+            hljs.highlightElement(dom.codeViewer);
+        } catch (error) {
+            dom.codeViewer.textContent = `Error loading file: ${error.message}`;
+        }
+    });
+
+    dom.generateTestsBtn.addEventListener('click', async () => {
+        if (!selectedJavaFile || !currentProjectId) return;
+        const modal = dom.modals.tests;
+        modal.el.style.display = 'block';
+        modal.loader.style.display = 'block';
+        modal.code.textContent = '';
+        try {
+            const response = await fetch('/api/project/generate-tests', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ projectId: currentProjectId, filePath: selectedJavaFile })
+            });
+            if (!response.ok) throw new Error((await response.json()).error || 'Failed to generate tests.');
+            const result = await response.json();
+            modal.code.textContent = result.testCode;
+            hljs.highlightElement(modal.code);
+        } catch (error) {
+            modal.code.textContent = 'Error: ' + error.message;
+        } finally {
+            modal.loader.style.display = 'none';
+        }
+    });
+
+    dom.codeViewerContainer.addEventListener('mouseup', () => {
+        const selection = window.getSelection().toString().trim();
+        dom.refactorToolbar.style.display = selection.length > 0 ? 'flex' : 'none';
+    });
+
+    dom.refactorBtn.addEventListener('click', async () => {
+        const codeSnippet = window.getSelection().toString().trim();
+        if (codeSnippet.length === 0) return;
+        const goal = dom.refactorGoal.value;
+        const modal = dom.modals.refactor;
+        modal.el.style.display = 'block';
+        modal.loader.style.display = 'block';
+        modal.code.textContent = '';
+        try {
+            const response = await fetch('/api/project/refactor-code', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ codeSnippet, goal })
+            });
+            if (!response.ok) throw new Error((await response.json()).error || 'Failed to refactor code.');
+            const result = await response.json();
+            modal.code.textContent = result.refactoredCode;
+            hljs.highlightElement(modal.code);
+        } catch (error) {
+            modal.code.textContent = 'Error: ' + error.message;
+        } finally {
+            modal.loader.style.display = 'none';
+        }
+    });
+
+    document.querySelectorAll('.close-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.getElementById(btn.dataset.modal).style.display = 'none';
+        });
+    });
+    window.addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal')) {
+            e.target.style.display = 'none';
+        }
+    });
+</script>
+</body>
+</html>
